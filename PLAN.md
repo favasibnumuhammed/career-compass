@@ -875,5 +875,48 @@ and it passes locally and deployed on the same numbers.
 - [x] `npm run api` 21/21 · `npm run pages` 14/14 against `career-compass-qrba.onrender.com`
 - [x] `scripts/pages.ts` — streaming assertion re-expressed in time, not chunk boundaries
 
-- [ ] **Next action:** Phase 7 — README query walkthrough (Q0–Q7 with their Cypher),
-      screenshots, the recording, and the hosted link in place of the Demo TODO.
+## 16. Phase 7 status — the README says what the data said
+
+Four TODOs closed: the graph-database argument, the Q0–Q7 walkthrough, the screenshots, and
+the hosted link.
+
+### The honest version of "why a graph database"
+
+The README now answers it with a table that concedes **five of the eight queries would be
+unremarkable SQL** — typeahead is `LIKE 'x%'` and Postgres does it better, Q2/Q3 are a join
+and a `GROUP BY`, Q6 is two joins, Q7 is a recursive CTE. What is left is Q4, a hypothetical
+set-difference per candidate skill, and **Q5, which is the actual argument**: a traversal of a
+network that does not exist in the source data, to a depth nobody knows in advance, where the
+path is the deliverable rather than a boolean.
+
+Two caveats are stated rather than buried, because the argument is stronger with them:
+`ADJACENT_TO` is derived in **TypeScript**, not Cypher — the graph stores and traverses the
+network, it did not compute it — and the free tier's limits (5s BFS budget, no GDS, no APOC)
+shaped more of the query layer than the data model did.
+
+### Screenshots are a script, not a folder
+
+`npm run shots` resolves the same Priya scenario through the API that `npm run pages` uses,
+then drives the installed Chrome over the **DevTools protocol** — Node 22's global
+`WebSocket`, so nothing was added to `package.json` for five PNGs. Two things needed the
+protocol rather than `chrome --screenshot`:
+
+- **`clip` with `captureBeyondViewport`** photographs one section wherever it sits. The career
+  path is below 75 optional-skill pills; no plausible viewport reaches it.
+- **The page is asked when it has finished streaming** instead of being given a fixed budget.
+  `/results` settles at 7.9s and the answer has to be in the picture.
+
+One bug worth keeping: matching `innerText` exactly never found *"Learn this next"*, because
+**Chrome applies `text-transform` to `innerText`** and the eyebrow renders as "LEARN THIS
+NEXT". Matching is case-insensitive now — `innerText` is what the reader sees, which is the
+whole reason to use it.
+
+- [x] README — *Why a graph database?* with the Postgres table and both caveats
+- [x] README — Q0–Q7, each with its Cypher, its timing, and the finding that shaped it
+- [x] README — five screenshots from the deployment, `docs/screenshots/`
+- [x] README — the live link, in the status line and its own section
+- [x] `scripts/shots.ts` · `npm run shots` · `tsc --noEmit` clean · `eslint` clean
+
+- [ ] **Next action:** the screen recording — the one deliverable that wants a person.
+      Suggested run: the two doors → prefill from *retail department manager* → results, with
+      the hero read aloud → open *supply chain manager* → the path. About 90 seconds.

@@ -18,7 +18,8 @@
     "seed": "tsx scripts/seed.ts",
     "queries": "tsx scripts/queries.ts",
     "api": "tsx scripts/api.ts",
-    "pages": "tsx scripts/pages.ts"
+    "pages": "tsx scripts/pages.ts",
+    "shots": "tsx scripts/shots.ts"
   },
   "dependencies": {
     "neo4j-driver": "^5.28.3",
