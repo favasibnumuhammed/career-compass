@@ -1,0 +1,44 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# One long-running Node service. Not a serverless target: the app holds a Bolt
+# connection pool open across requests, which is the whole reason `lib/db.ts`
+# caches a driver on `globalThis`.
+#
+# Create it with: Render dashboard → New → Blueprint → point at this repo.
+# The two `sync: false` variables are prompted for at creation and never live
+# in this file.
+
+services:
+  - type: web
+    name: career-compass
+    runtime: node
+    plan: free
+    region: frankfurt # keep this next to the CognoDB instance — see README
+    branch: main
+    autoDeploy: true
+
+    # `--include=dev` is not optional: Render sets NODE_ENV=production, under
+    # which a bare `npm ci` skips devDependencies, and typescript, tailwind and
+    # @types/* are all needed to build.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+
+    # Process liveness, not database readiness. A health check that fails when
+    # CognoDB is down would have Render restart a web server that is working
+    # perfectly, and take the outage panel down with it. `/api/health` reports
+    # the database, and the UI retries against that.
+    healthCheckPath: /api/live
+
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: COGNODB_URI
+        sync: false # bolt+s://<instance-id>.databases.cognodb.com
+      - key: COGNODB_USER
+        value: cognodb
+      - key: COGNODB_PASSWORD
+        sync: false # shown once at instance creation
+      # One instance, 0.1 vCPU. The c0 tier allows 200 connections across all
+      # clients; asking for 20 from a box this size only queues work sooner.
+      - key: COGNODB_MAX_POOL_SIZE
+        value: "10"

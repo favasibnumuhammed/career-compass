@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/**
+ * Three hues, each with one job, so a colour is never decorative:
+ *
+ *   accent   navigation, the product's own voice, the hero card
+ *   have     a skill you already hold
+ *   gap      a skill you are missing
+ *
+ * That is the whole semantic system. `have` and `gap` appear on every screen —
+ * the detail page's skill lists, the coverage rings, the path chain — and they
+ * mean the same thing every time.
+ */
+:root {
+  --page: #fbfaf9;
+  --surface: #ffffff;
+  --surface-sunk: #f5f4f2;
+  --line: #e5e2df;
+  --line-strong: #d3cfca;
+  --ink: #1c1917;
+  --ink-soft: #57534e;
+  --ink-muted: #837c75;
+
+  --accent: #4f46e5;
+  --accent-ink: #ffffff;
+  --accent-soft: #eef2ff;
+  --accent-line: #c7d2fe;
+
+  --have: #047857;
+  --have-soft: #ecfdf5;
+  --have-line: #a7f3d0;
+
+  --gap: #b45309;
+  --gap-soft: #fffbeb;
+  --gap-line: #fde68a;
+
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0c0a09;
+    --surface: #171513;
+    --surface-sunk: #211e1b;
+    --line: #2c2724;
+    --line-strong: #413a35;
+    --ink: #faf9f7;
+    --ink-soft: #c4bdb6;
+    --ink-muted: #948c85;
+
+    --accent: #a5b4fc;
+    --accent-ink: #1e1b4b;
+    --accent-soft: #1e1b3a;
+    --accent-line: #3b3570;
+
+    --have: #34d399;
+    --have-soft: #0d2b22;
+    --have-line: #1c5245;
+
+    --gap: #fbbf24;
+    --gap-soft: #2b1f0a;
+    --gap-line: #584115;
+
+    --danger: #fca5a5;
+    --danger-soft: #2a1414;
+    --danger-line: #5c2626;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunk: var(--surface-sunk);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+
+  --color-have: var(--have);
+  --color-have-soft: var(--have-soft);
+  --color-have-line: var(--have-line);
+
+  --color-gap: var(--gap);
+  --color-gap-soft: var(--gap-soft);
+  --color-gap-line: var(--gap-line);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* Focus is never removed, only restyled — every control here is reachable by
+   keyboard and the typeahead is unusable without a visible ring. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/**
+ * `/api/analyze` takes ~7.5 seconds against the c0 instance (PLAN.md §13), so
+ * the skeletons are on screen long enough to be looked at. A slow, low-contrast
+ * sweep reads as "working"; the usual 1.5s pulse reads as a stutter over seven
+ * seconds.
+ */
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--surface-sunk) 0%,
+    var(--line) 40%,
+    var(--line) 60%,
+    var(--surface-sunk) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}

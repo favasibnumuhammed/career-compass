@@ -1,0 +1,42 @@
+{
+  "name": "career-compass",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p ${PORT:-3000}",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "probe": "tsx scripts/probe.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "adjacency": "tsx scripts/adjacency.ts",
+    "schema": "tsx scripts/schema.ts",
+    "seed": "tsx scripts/seed.ts",
+    "queries": "tsx scripts/queries.ts",
+    "api": "tsx scripts/api.ts",
+    "pages": "tsx scripts/pages.ts"
+  },
+  "dependencies": {
+    "neo4j-driver": "^5.28.3",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}
