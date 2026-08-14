@@ -10,10 +10,11 @@
  *
  * 1. **The shell streams before the answer.** `/results` takes ~7s because
  *    `analyse()` does; what must not take 7s is the first byte. The check reads
- *    the response as a stream and asserts the heading and the skeleton are in
- *    the *first chunk*, with the hero card arriving later. A refactor that
- *    accidentally awaits the analysis above the Suspense boundary turns the
- *    page into a seven-second white screen, and nothing else here would catch it.
+ *    the response as a stream and times when each piece of text became
+ *    readable, asserting the heading and skeleton arrive seconds before the
+ *    hero card. A refactor that accidentally awaits the analysis above the
+ *    Suspense boundary turns the page into a seven-second white screen, and
+ *    nothing else here would catch it.
  *
  * 2. **The states are distinguishable.** "No skills", "no matches", "we don't
  *    have that occupation" and "the database is unreachable" are four different
@@ -45,8 +46,16 @@ interface Page {
   status: number;
   /** Everything that arrived, as visible text. */
   text: string;
-  /** Visible text from the first streamed chunk alone. */
-  firstChunk: string;
+  /**
+   * Milliseconds into the response at which a piece of visible text had fully
+   * arrived, or null if it never did.
+   *
+   * Deliberately a time and not a chunk index. Over loopback the whole shell
+   * lands in chunk one; through a proxy the same bytes are split across
+   * several chunks milliseconds apart, and asserting on "the first chunk"
+   * fails there while nothing about the page has changed.
+   */
+  arrivedAt: (marker: string) => number | null;
   /** Raw bytes, for leak detection — the RSC payload lives in script blocks. */
   raw: string;
   ttfbMs: number;
@@ -75,25 +84,40 @@ async function get(path: string): Promise<Page> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let raw = "";
-  let firstChunkRaw = "";
   let ttfbMs = 0;
+  // One entry per chunk: how much had arrived, and when.
+  const arrivals: { length: number; at: number }[] = [];
 
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    if (!firstChunkRaw) {
-      ttfbMs = Date.now() - started;
-      firstChunkRaw = decoder.decode(value, { stream: true });
-      raw += firstChunkRaw;
-    } else {
-      raw += decoder.decode(value, { stream: true });
-    }
+    if (!arrivals.length) ttfbMs = Date.now() - started;
+    raw += decoder.decode(value, { stream: true });
+    arrivals.push({ length: raw.length, at: Date.now() - started });
   }
+
+  /**
+   * When did this text become readable? Binary search over the chunk
+   * boundaries, comparing against the *visible* prefix each time — markers are
+   * what a reader sees, and React splits text nodes with comment markers that
+   * a raw substring search would trip over.
+   */
+  const arrivedAt = (marker: string): number | null => {
+    if (!visible(raw).includes(marker)) return null;
+    let low = 0;
+    let high = arrivals.length - 1;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (visible(raw.slice(0, arrivals[middle].length)).includes(marker)) high = middle;
+      else low = middle + 1;
+    }
+    return arrivals[low].at;
+  };
 
   return {
     status: response.status,
     text: visible(raw),
-    firstChunk: visible(firstChunkRaw),
+    arrivedAt,
     raw,
     ttfbMs,
     ms: Date.now() - started,
@@ -229,22 +253,25 @@ async function main(): Promise<void> {
     (page) => {
       const problem = status(page, 200) || says(page, "Where you stand", "Learn this next", "Closest roles");
       if (problem) return problem;
-      if (!page.firstChunk.includes("Where you stand")) {
-        return "the heading was not in the first chunk — the page is blocking on the analysis";
-      }
-      if (!page.firstChunk.includes("Searching the graph")) {
-        return "the skeleton was not in the first chunk";
-      }
-      if (page.firstChunk.includes("Learn this next")) {
-        return "the answer was in the first chunk — nothing was actually streamed";
+      const heading = page.arrivedAt("Where you stand");
+      const skeleton = page.arrivedAt("Searching the graph");
+      const answer = page.arrivedAt("Learn this next");
+      if (heading === null || skeleton === null) return "the heading and skeleton never arrived";
+      if (answer === null) return "the answer never arrived";
+      const shell = Math.max(heading, skeleton);
+      // A page that awaits the analysis above the Suspense boundary delivers
+      // shell and answer together. One second is far below the ~7s the query
+      // takes and far above any plausible chunking jitter.
+      if (answer - shell < 1000) {
+        return `shell and answer arrived ${answer - shell}ms apart — the page is blocking on the analysis`;
       }
       return "";
     },
-    (page) =>
-      bullet(
-        `shell in ${page.ttfbMs}ms, complete in ${page.ms}ms — ` +
-          `${(page.ms / Math.max(page.ttfbMs, 1)).toFixed(0)}× later`,
-      ),
+    (page) => {
+      const shell = Math.max(page.arrivedAt("Where you stand") ?? 0, page.arrivedAt("Searching the graph") ?? 0);
+      const answer = page.arrivedAt("Learn this next") ?? page.ms;
+      bullet(`shell in ${shell}ms, answer at ${answer}ms — ${(answer / Math.max(shell, 1)).toFixed(0)}× later`);
+    },
   );
 
   await check(
@@ -319,10 +346,13 @@ async function main(): Promise<void> {
         const problem =
           status(page, 200) || says(page, "Getting here from where you are", "Skills already counted");
         if (problem) return problem;
-        return page.firstChunk.includes("Working out the cheapest route") ||
-          !page.firstChunk.includes("Getting here from where you are")
-          ? ""
-          : "the path section rendered without ever showing its skeleton";
+        // The detail page has two boundaries: the job at ~1s, the route at
+        // 3–8s. The skeleton must therefore be readable before the route is.
+        const skeleton = page.arrivedAt("Working out the cheapest route");
+        const route = page.arrivedAt("Skills already counted");
+        if (skeleton === null) return "the path section rendered without ever showing its skeleton";
+        if (route !== null && route < skeleton) return "the route arrived before its own skeleton";
+        return "";
       },
       (page) => {
         const match = /(\d+ steps?), (\d+ skills?) in total, and never more than (\d+)/.exec(page.text);
@@ -356,7 +386,14 @@ async function main(): Promise<void> {
       const started = Date.now();
       const response = await fetch(`${BASE}/api/occupation/00000000-0000-4000-8000-000000000000`);
       const raw = await response.text();
-      return { status: response.status, text: raw, firstChunk: raw, raw, ttfbMs: 0, ms: Date.now() - started };
+      return {
+        status: response.status,
+        text: raw,
+        arrivedAt: () => null, // not streamed, and nothing here asks
+        raw,
+        ttfbMs: 0,
+        ms: Date.now() - started,
+      };
     },
     (page) => status(page, 404) || (page.text.includes("not_found") ? "" : "wrong error code"),
   );

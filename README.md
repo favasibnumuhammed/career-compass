@@ -7,9 +7,11 @@ cheapest multi-step route to a career you're aiming at.
 Built on [CognoDB](https://console.cognodb.com), a managed graph database speaking
 openCypher over Bolt, accessed with the official Neo4j driver.
 
-> **Status: Phase 6 (deployable).** Graph loaded, queries Q0–Q7 tuned against real data, API
-> and UI built and checked over real HTTP, Render blueprint committed — see [PLAN.md](PLAN.md)
-> for the plan, timeline and the findings that changed it.
+> **Live at [career-compass-qrba.onrender.com](https://career-compass-qrba.onrender.com)** —
+> Phase 6 done. Graph loaded, Q0–Q7 tuned against real data, API and UI checked over real
+> HTTP both locally and against the deployment. See [PLAN.md](PLAN.md) for the plan and the
+> findings that changed it. Remaining: Phase 7 — the query walkthrough, screenshots and a
+> recording.
 
 ---
 
@@ -162,6 +164,16 @@ See [.env.example](.env.example).
 | `COGNODB_DATABASE` | no | defaults to the server's default database |
 | `COGNODB_MAX_POOL_SIZE` | no | default 20; the c0 instance caps at 200 across all clients |
 
+## Live
+
+**https://career-compass-qrba.onrender.com** — `npm run api` 21/21 and `npm run pages` 14/14
+against it, the same two suites that gate local.
+
+On Render the app sits next to the CognoDB instance, and it shows: every single-query route
+is 2–3× faster than from a laptop (occupation detail 1.5s → 0.47s, career path 4.4s → 2.8s).
+`/api/analyze` is unchanged at ~8s, because it was never bound by round trips — see
+[PLAN.md](PLAN.md) §13.
+
 ## Deployment
 
 The app is a **long-running Node service**, not a serverless target: `lib/db.ts` keeps one
@@ -231,7 +243,9 @@ result — with a retry that re-pings `/api/health`.
 
 ## Demo
 
-<!-- TODO (Phase 6/7): hosted link + screen recording. -->
+**https://career-compass-qrba.onrender.com**
+
+<!-- TODO (Phase 7): screen recording. -->
 
 ## Attribution
 

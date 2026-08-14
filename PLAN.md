@@ -829,7 +829,51 @@ the other answer — that route costs the database nothing, which is what makes 
 - [x] `.node-version` · `engines` · README **Deployment** section
 - [x] `tsc --noEmit` clean · `eslint` clean · `next build` clean
 
-- [ ] **Next action:** push to GitHub, then Render → New → Blueprint → this repo, and enter
-      `COGNODB_URI` / `COGNODB_PASSWORD` when prompted. Acceptance is
-      `BASE_URL=https://… npm run api` (21) and `npm run pages` (14) against the live URL.
-      Then Phase 7 — README query walkthrough, screenshots, recording, and the hosted link.
+### Live — `https://career-compass-qrba.onrender.com`
+
+**`npm run api` 21/21 · `npm run pages` 14/14 against the deployment**, which is the same pair
+that gates local. The blueprint went up as written: no dashboard edits, no build fixes, no
+start-command surprises.
+
+Latency, measured from the dev machine against both — so the Render column carries ~0.2s of
+client-to-Frankfurt that the local column does not:
+
+| Route | local | deployed |
+|---|---|---|
+| `/api/live` | — | 251ms (this *is* the client leg) |
+| `/api/health` | 12ms | 181ms |
+| `/api/search` | 0.9–1.3s | 0.5–0.8s |
+| `/api/occupation/[id]` | 0.9–1.5s | 0.47s |
+| `…/prefill` | 1.6s | 0.47s |
+| `POST /api/analyze` | 6.5–7.9s | **8.3s** |
+| `POST /api/path` | 4.0–4.4s | 2.8s |
+
+**Every small query got 2–3× faster and the big one did not.** `/api/health` costing the same
+as `/api/live` says the Render→CognoDB hop is near zero — co-location did what §13 hoped, and
+the routes that are one round trip each collected the whole win. `analyze` is unmoved because
+it was never round-trip-bound: §13 measured it serialising on the c0 instance's own CPU, and
+moving the client closer does not buy CPU. Phase 5's decision to design for seven seconds
+rather than optimise them was the right one, and it survives the move to production.
+
+### The one check that failed, and why it was the check that was wrong
+
+`npm run pages` reported *"the heading was not in the first chunk — the page is blocking on
+the analysis"* — for a page whose shell arrived in 256ms and whose answer arrived at 8510ms.
+
+The assertion measured the wrong thing. It equated *the shell* with *HTTP chunk one*, which
+holds over loopback and not through a proxy: Render splits the same bytes across several
+chunks milliseconds apart, so the heading landed in chunk two and an unchanged page failed.
+A check that only passes on localhost is worse than no check, because it will be believed.
+
+It now measures **time**, not chunk index — `page.arrivedAt(marker)` binary-searches the
+chunk boundaries for when a piece of visible text became readable — and asserts the answer
+arrives at least a second after the shell. Deployed: **shell at 408ms, answer at 8393ms, 21×
+later.** The property Phase 5 cared about is unchanged; only its measurement was replaced,
+and it passes locally and deployed on the same numbers.
+
+- [x] Deployed via blueprint, first build clean, no dashboard configuration
+- [x] `npm run api` 21/21 · `npm run pages` 14/14 against `career-compass-qrba.onrender.com`
+- [x] `scripts/pages.ts` — streaming assertion re-expressed in time, not chunk boundaries
+
+- [ ] **Next action:** Phase 7 — README query walkthrough (Q0–Q7 with their Cypher),
+      screenshots, the recording, and the hosted link in place of the Demo TODO.
