@@ -829,7 +829,94 @@ the other answer — that route costs the database nothing, which is what makes 
 - [x] `.node-version` · `engines` · README **Deployment** section
 - [x] `tsc --noEmit` clean · `eslint` clean · `next build` clean
 
-- [ ] **Next action:** push to GitHub, then Render → New → Blueprint → this repo, and enter
-      `COGNODB_URI` / `COGNODB_PASSWORD` when prompted. Acceptance is
-      `BASE_URL=https://… npm run api` (21) and `npm run pages` (14) against the live URL.
-      Then Phase 7 — README query walkthrough, screenshots, recording, and the hosted link.
+### Live — `https://career-compass-qrba.onrender.com`
+
+**`npm run api` 21/21 · `npm run pages` 14/14 against the deployment**, which is the same pair
+that gates local. The blueprint went up as written: no dashboard edits, no build fixes, no
+start-command surprises.
+
+Latency, measured from the dev machine against both — so the Render column carries ~0.2s of
+client-to-Frankfurt that the local column does not:
+
+| Route | local | deployed |
+|---|---|---|
+| `/api/live` | — | 251ms (this *is* the client leg) |
+| `/api/health` | 12ms | 181ms |
+| `/api/search` | 0.9–1.3s | 0.5–0.8s |
+| `/api/occupation/[id]` | 0.9–1.5s | 0.47s |
+| `…/prefill` | 1.6s | 0.47s |
+| `POST /api/analyze` | 6.5–7.9s | **8.3s** |
+| `POST /api/path` | 4.0–4.4s | 2.8s |
+
+**Every small query got 2–3× faster and the big one did not.** `/api/health` costing the same
+as `/api/live` says the Render→CognoDB hop is near zero — co-location did what §13 hoped, and
+the routes that are one round trip each collected the whole win. `analyze` is unmoved because
+it was never round-trip-bound: §13 measured it serialising on the c0 instance's own CPU, and
+moving the client closer does not buy CPU. Phase 5's decision to design for seven seconds
+rather than optimise them was the right one, and it survives the move to production.
+
+### The one check that failed, and why it was the check that was wrong
+
+`npm run pages` reported *"the heading was not in the first chunk — the page is blocking on
+the analysis"* — for a page whose shell arrived in 256ms and whose answer arrived at 8510ms.
+
+The assertion measured the wrong thing. It equated *the shell* with *HTTP chunk one*, which
+holds over loopback and not through a proxy: Render splits the same bytes across several
+chunks milliseconds apart, so the heading landed in chunk two and an unchanged page failed.
+A check that only passes on localhost is worse than no check, because it will be believed.
+
+It now measures **time**, not chunk index — `page.arrivedAt(marker)` binary-searches the
+chunk boundaries for when a piece of visible text became readable — and asserts the answer
+arrives at least a second after the shell. Deployed: **shell at 408ms, answer at 8393ms, 21×
+later.** The property Phase 5 cared about is unchanged; only its measurement was replaced,
+and it passes locally and deployed on the same numbers.
+
+- [x] Deployed via blueprint, first build clean, no dashboard configuration
+- [x] `npm run api` 21/21 · `npm run pages` 14/14 against `career-compass-qrba.onrender.com`
+- [x] `scripts/pages.ts` — streaming assertion re-expressed in time, not chunk boundaries
+
+## 16. Phase 7 status — the README says what the data said
+
+Four TODOs closed: the graph-database argument, the Q0–Q7 walkthrough, the screenshots, and
+the hosted link.
+
+### The honest version of "why a graph database"
+
+The README now answers it with a table that concedes **five of the eight queries would be
+unremarkable SQL** — typeahead is `LIKE 'x%'` and Postgres does it better, Q2/Q3 are a join
+and a `GROUP BY`, Q6 is two joins, Q7 is a recursive CTE. What is left is Q4, a hypothetical
+set-difference per candidate skill, and **Q5, which is the actual argument**: a traversal of a
+network that does not exist in the source data, to a depth nobody knows in advance, where the
+path is the deliverable rather than a boolean.
+
+Two caveats are stated rather than buried, because the argument is stronger with them:
+`ADJACENT_TO` is derived in **TypeScript**, not Cypher — the graph stores and traverses the
+network, it did not compute it — and the free tier's limits (5s BFS budget, no GDS, no APOC)
+shaped more of the query layer than the data model did.
+
+### Screenshots are a script, not a folder
+
+`npm run shots` resolves the same Priya scenario through the API that `npm run pages` uses,
+then drives the installed Chrome over the **DevTools protocol** — Node 22's global
+`WebSocket`, so nothing was added to `package.json` for five PNGs. Two things needed the
+protocol rather than `chrome --screenshot`:
+
+- **`clip` with `captureBeyondViewport`** photographs one section wherever it sits. The career
+  path is below 75 optional-skill pills; no plausible viewport reaches it.
+- **The page is asked when it has finished streaming** instead of being given a fixed budget.
+  `/results` settles at 7.9s and the answer has to be in the picture.
+
+One bug worth keeping: matching `innerText` exactly never found *"Learn this next"*, because
+**Chrome applies `text-transform` to `innerText`** and the eyebrow renders as "LEARN THIS
+NEXT". Matching is case-insensitive now — `innerText` is what the reader sees, which is the
+whole reason to use it.
+
+- [x] README — *Why a graph database?* with the Postgres table and both caveats
+- [x] README — Q0–Q7, each with its Cypher, its timing, and the finding that shaped it
+- [x] README — five screenshots from the deployment, `docs/screenshots/`
+- [x] README — the live link, in the status line and its own section
+- [x] `scripts/shots.ts` · `npm run shots` · `tsc --noEmit` clean · `eslint` clean
+
+- [ ] **Next action:** the screen recording — the one deliverable that wants a person.
+      Suggested run: the two doors → prefill from *retail department manager* → results, with
+      the hero read aloud → open *supply chain manager* → the path. About 90 seconds.
